@@ -12,7 +12,7 @@ import InfluencerModal from './components/InfluencerModal';
 import ReportsView from './components/ReportsView';
 import PredictorView from './components/PredictorView';
 import SettingsView from './components/SettingsView';
-import { WifiOff, AlertTriangle, RefreshCw, Terminal, CheckCircle2 } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import { API_BASE_URL } from './config/api';
 
 const TAB_TITLES = {
@@ -223,48 +223,13 @@ export default function App() {
             {/* Sync button */}
             <button
               onClick={checkHealth}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl border text-xs font-semibold transition-all shrink-0 ${
-                isOnline
-                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/20'
-                  : 'bg-rose-500/10 border-rose-500/30 text-rose-300 hover:bg-rose-500/20'
-              }`}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/[0.08] bg-zinc-900/80 hover:bg-zinc-800 text-xs font-medium text-zinc-300 transition-all shrink-0 active:scale-95"
             >
-              <RefreshCw className="w-3.5 h-3.5 animate-spin-slow" />
+              <RefreshCw className="w-3.5 h-3.5" />
               <span>Sync</span>
             </button>
           </div>
 
-          {/* Offline Banner Warning - Appears ONLY when server is disconnected */}
-          {!isOnline && (
-            <div className="p-4 rounded-2xl bg-rose-950/40 border border-rose-500/30 shadow-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-              <div className="flex items-start gap-3">
-                <div className="w-9 h-9 rounded-xl bg-rose-500/20 border border-rose-500/40 flex items-center justify-center text-rose-400 shrink-0">
-                  <WifiOff className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                    <span>Backend Server Offline</span>
-                    <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 text-[10px] font-mono">
-                      Disconnected
-                    </span>
-                  </h3>
-                  <p className="text-xs text-rose-200/80 mt-0.5">
-                    No hardcoded mock data is displayed. Run this command in your server terminal to load real-time analytics:
-                  </p>
-                  <div className="mt-2 flex items-center gap-2 font-mono text-[11px] bg-black/60 px-3 py-1.5 rounded-lg border border-rose-500/30 text-rose-100 select-all">
-                    <Terminal className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-                    <span>..\.venv\Scripts\python -m uvicorn main:app --reload --port 8000</span>
-                  </div>
-                </div>
-              </div>
-              <button
-                onClick={checkHealth}
-                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-xs font-semibold text-white shadow-md transition-all active:scale-95 shrink-0"
-              >
-                Check Status
-              </button>
-            </div>
-          )}
 
           {/* Conditional Tab Rendering */}
           {activeTab === 'dashboard' && (

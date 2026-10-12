@@ -22,23 +22,18 @@ export default function Navbar({ searchQuery, setSearchQuery, onExportCsv, isOnl
 
       {/* Right Controls */}
       <div className="flex items-center gap-4">
-        {/* Dynamic Connection Status Badge */}
+        {/* Connection Status Badge */}
         {isOnline ? (
-          <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 text-[11px] font-semibold transition-all">
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 text-[11px] font-medium">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-            <span>Live Data ({recordsCount ? `${recordsCount.toLocaleString()} Synced` : 'Synced'})</span>
+            <span>Live</span>
           </div>
         ) : (
-          <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-rose-500/10 border border-rose-500/25 text-rose-400 text-[11px] font-semibold transition-all">
-            <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
-            <span>Backend Offline (Port 8000)</span>
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-zinc-800 border border-white/[0.08] text-zinc-400 text-[11px] font-medium">
+            <span className="w-1.5 h-1.5 rounded-full bg-zinc-500"></span>
+            <span>Offline</span>
           </div>
         )}
-
-        {/* Dynamic timestamp */}
-        <span className="text-xs text-slate-400 font-mono hidden md:inline-block">
-          {isOnline ? `Synced: ${lastUpdated || 'Live'}` : 'Server Not Connected'}
-        </span>
 
         {/* Export CSV Button */}
         <button
