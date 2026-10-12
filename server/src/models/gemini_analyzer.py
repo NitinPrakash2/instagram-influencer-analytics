@@ -42,20 +42,21 @@ class GeminiInfluencerAnalyzer:
         bio = profile.get("bio", "")
         
         prompt = f"""
-        Act as an expert Social Media & Influencer Marketing Strategist.
-        Analyze the following Instagram creator:
+        Analyze Instagram creator {handle} in 3 short, direct bullet points. Keep it minimal and concise (maximum 2 lines per bullet). Do NOT use markdown asterisks (no **) and do NOT use headings.
+
+        Creator Data:
         - Handle: {handle}
         - Category: {category}
         - Followers: {followers:,}
-        - Engagement Rate: {er}%
-        - Composite AI Influence Score: {score}/100 ({tier})
-        - Automation Detected: {auto_used} (Tool: {auto_tool})
+        - Engagement: {er}%
+        - Score: {score}/100
+        - Automation: {auto_used} ({auto_tool})
         - Bio: {bio}
 
-        Provide a concise, high-impact assessment with 3 sections:
-        1. Performance Summary & Audience Loyalty
-        2. Automation & Workflow Opportunity
-        3. Brand Collaboration Potential & Estimated Value
+        Format strictly as:
+        • Performance: [1 short line on reach and engagement quality]
+        • Workflow: [1 short line on automation setup]
+        • Brand Fit: [1 short line on sponsorship potential and estimated post rate]
         """
 
         if self.client:
@@ -82,12 +83,9 @@ class GeminiInfluencerAnalyzer:
             else "Healthy engagement aligned with standard organic discovery rates."
         )
 
-        return f"""
-### 📊 AI Strategic Analysis for {handle}
-* **Performance & Reach:** Ranked as **{tier}** with an AI Composite Score of **{score}/100**. With **{followers:,}** followers and an engagement rate of **{er}%**, this creator exhibits {er_assessment}
-* **Automation Workflow:** {auto_text}
-* **Brand Partnership Value:** Prime fit for brands in the **{category}** vertical. Estimated partnership rate: **${max(150, int(followers * 0.008)):,} – ${max(300, int(followers * 0.018)):,} per sponsored post/reel**.
-        """.strip()
+        return f"""• Performance: {followers:,} followers with {er}% engagement ({er_assessment}).
+• Workflow: {auto_text}
+• Brand Fit: Prime fit for {category}. Estimated partnership rate: ${max(150, int(followers * 0.008)):,} – ${max(300, int(followers * 0.018)):,} per post.""".strip()
 
 
 if __name__ == "__main__":
