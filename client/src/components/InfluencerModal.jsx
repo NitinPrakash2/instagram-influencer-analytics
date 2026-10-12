@@ -1,12 +1,33 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, ExternalLink, Copy, Check, Sparkles, RefreshCw } from 'lucide-react';
 import { API_BASE_URL } from '../config/api';
+import { lockScroll, unlockScroll } from '../utils/scrollLock';
 
 export default function InfluencerModal({ influencer, onClose }) {
   const [aiInsight, setAiInsight] = useState('');
   const [loadingAi, setLoadingAi] = useState(false);
   const [copiedEmail, setCopiedEmail] = useState(false);
   const [copiedHandle, setCopiedHandle] = useState(false);
+
+  // Lock background scrolling and listen for Escape key
+  useEffect(() => {
+    if (!influencer) return;
+
+    lockScroll();
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      unlockScroll();
+    };
+  }, [influencer, onClose]);
 
   if (!influencer) return null;
 
@@ -70,43 +91,70 @@ export default function InfluencerModal({ influencer, onClose }) {
       );
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
-      <div className="w-full max-w-md bg-[#0D0F14] border border-white/[0.08] rounded-2xl p-6 shadow-2xl relative text-zinc-300">
+  const modalContent = (
+    <div 
+      className="fixed inset-0 z-[100] w-screen h-screen flex items-center justify-center p-4 bg-black/45 backdrop-blur-[5px] transition-all animate-fadeIn"
+      style={{ WebkitBackdropFilter: 'blur(5px)' }}
+    >
+      {/* Click outside backdrop */}
+      <div 
+        className="fixed inset-0 cursor-pointer" 
+        onClick={onClose} 
+        aria-hidden="true" 
+      />
+
+      {/* Modal Dialog */}
+      <div className="w-full max-w-md bg-[#0D0F14]/95 backdrop-blur-xl border border-white/[0.12] rounded-2xl p-6 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.85)] relative text-zinc-300 z-10 animate-scaleUp">
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-5 right-5 p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/[0.05] transition-colors"
+          className="absolute top-5 right-5 p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/[0.05] transition-colors cursor-pointer"
         >
           <X className="w-4 h-4" />
         </button>
 
         {/* Header */}
         <div className="flex items-start gap-3.5 mb-5 pr-6">
-          <div className="w-12 h-12 rounded-full bg-zinc-800 border border-white/[0.08] flex items-center justify-center text-base font-semibold text-white shrink-0 uppercase">
-            {influencer.name?.charAt(0) || influencer.handle?.charAt(1) || 'C'}
-          </div>
+          <img
+            src={`${API_BASE_URL}/api/avatar/${cleanHandle}`}
+            alt={influencer.name}
+            referrerPolicy="no-referrer"
+            className="w-12 h-12 rounded-full object-cover border border-white/[0.1] bg-zinc-800 shrink-0"
+            onError={(e) => {
+              const clean = (influencer.name || cleanHandle || 'C').replace('@', '');
+              e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(clean)}&background=18181b&color=ffffff&bold=true`;
+            }}
+          />
 
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <h3 className="text-base font-semibold text-white truncate">{influencer.name}</h3>
               <a
                 href={instagramUrl}
                 target="_blank"
-                rel="noreferrer"
-                className="text-zinc-500 hover:text-zinc-300 transition-colors shrink-0"
-                title="Open on Instagram"
+                rel="noopener noreferrer"
+                className="text-base font-semibold text-white hover:text-pink-400 transition-colors truncate inline-flex items-center gap-1.5 cursor-pointer"
+                title="View profile on Instagram"
               >
-                <ExternalLink className="w-3.5 h-3.5" />
+                <span>{influencer.name}</span>
+                <ExternalLink className="w-3.5 h-3.5 text-zinc-500 hover:text-pink-400 shrink-0" />
               </a>
             </div>
 
             <div className="flex items-center gap-2 text-xs text-zinc-400 mt-0.5">
+              <a
+                href={instagramUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-pink-400 hover:underline transition-colors font-mono text-zinc-300 cursor-pointer"
+                title="Open Instagram profile"
+              >
+                {influencer.handle}
+              </a>
               <button
                 onClick={() => handleCopy(influencer.handle, 'handle')}
-                className="hover:text-zinc-200 transition-colors flex items-center gap-1 font-mono"
+                className="hover:text-zinc-200 transition-colors p-0.5 cursor-pointer"
+                title="Copy handle"
               >
-                <span>{influencer.handle}</span>
                 {copiedHandle ? (
                   <Check className="w-3 h-3 text-emerald-400" />
                 ) : (
@@ -217,4 +265,10 @@ export default function InfluencerModal({ influencer, onClose }) {
       </div>
     </div>
   );
+
+  if (typeof document !== 'undefined') {
+    return createPortal(modalContent, document.body);
+  }
+
+  return modalContent;
 }

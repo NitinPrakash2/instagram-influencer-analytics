@@ -12,6 +12,8 @@ import InfluencerModal from './components/InfluencerModal';
 import ReportsView from './components/ReportsView';
 import PredictorView from './components/PredictorView';
 import SettingsView from './components/SettingsView';
+import DatasetManager from './components/DatasetManager';
+import deleteConfirmModal from './components/DeleteConfirmModal';
 import { RefreshCw } from 'lucide-react';
 import { API_BASE_URL } from './config/api';
 
@@ -51,6 +53,9 @@ export default function App() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncSuccess, setSyncSuccess] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   // 1. Health check & connectivity heartbeat
   const checkHealth = useCallback(async () => {
@@ -70,6 +75,23 @@ export default function App() {
       return false;
     }
   }, []);
+
+  // Sync button handler with smooth animation and live refresh
+  const handleSync = async () => {
+    setIsSyncing(true);
+    setSyncSuccess(false);
+    try {
+      await checkHealth();
+      setRefreshTrigger((prev) => prev + 1);
+      await new Promise((resolve) => setTimeout(resolve, 600));
+      setSyncSuccess(true);
+      setTimeout(() => setSyncSuccess(false), 1500);
+    } catch {
+      // ignore
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   // Poll server health every 3 seconds
   useEffect(() => {
@@ -128,7 +150,7 @@ export default function App() {
         if (data) setKeyInsights(data);
       })
       .catch(() => {});
-  }, [isOnline]);
+  }, [isOnline, refreshTrigger]);
 
   // 3. Fetch real influencers list from API
   useEffect(() => {
@@ -149,7 +171,7 @@ export default function App() {
     if (filters.minEr && filters.minEr !== 'Any') params.append('min_er', filters.minEr);
     if (filters.hasAutomation && filters.hasAutomation !== 'Any') params.append('has_automation', filters.hasAutomation);
     params.append('page', currentPage.toString());
-    params.append('limit', '10');
+    params.append('limit', '6');
 
     fetch(`${API_BASE_URL}/api/influencers?${params.toString()}`)
       .then((res) => (res.ok ? res.json() : null))
@@ -167,7 +189,12 @@ export default function App() {
         setLoading(false);
         setInfluencers([]);
       });
-  }, [isOnline, selectedCategory, filters, searchQuery, currentPage]);
+  }, [isOnline, selectedCategory, filters, searchQuery, currentPage, refreshTrigger]);
+
+  // Reset pagination to page 1 whenever search, category, or any filter criteria change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filters, searchQuery, selectedCategory]);
 
   const handleResetFilters = () => {
     setSelectedCategory('');
@@ -182,25 +209,49 @@ export default function App() {
     setCurrentPage(1);
   };
 
-  const handleExportCsv = () => {
-    if (isOnline) {
-      window.open(`${API_BASE_URL}/api/export-csv`, '_blank');
-    } else {
+  const handleExport = async (format = 'excel') => {
+    if (!isOnline) {
       alert('Backend server is offline. Please start FastAPI on port 8000 to export data.');
+      return;
+    }
+    try {
+      const endpoint = format === 'csv' ? '/api/export-csv' : '/api/export-excel';
+      const timestamp = Date.now();
+      const res = await fetch(`${API_BASE_URL}${endpoint}?t=${timestamp}`, {
+        cache: 'no-store',
+      });
+      if (!res.ok) throw new Error(`Export failed with HTTP ${res.status}`);
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = format === 'csv'
+        ? `instarank_influencers_analytics.csv`
+        : `instarank_influencers_analytics.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => window.URL.revokeObjectURL(url), 2000);
+    } catch (err) {
+      console.error('Export error:', err);
+      window.open(`${API_BASE_URL}/api/export-excel?t=${Date.now()}`, '_blank');
     }
   };
 
+  const handleExportCsv = (format = 'excel') => handleExport(typeof format === 'string' ? format : 'excel');
+
   return (
-    <div className="flex min-h-screen bg-[#0A0D14] text-slate-100 font-sans antialiased selection:bg-indigo-500/30">
+    <div className="flex min-h-screen bg-[#07090E] text-zinc-100 font-sans antialiased selection:bg-zinc-700">
       {/* 1. Left Sidebar */}
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
 
       {/* 2. Main Area */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto main-scroll-container">
         {/* Sticky Top Navbar */}
         <Navbar
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
+          onExport={handleExport}
           onExportCsv={handleExportCsv}
           isOnline={isOnline}
           recordsCount={totalCount || stats?.total_influencers}
@@ -222,11 +273,19 @@ export default function App() {
 
             {/* Sync button */}
             <button
-              onClick={checkHealth}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/[0.08] bg-zinc-900/80 hover:bg-zinc-800 text-xs font-medium text-zinc-300 transition-all shrink-0 active:scale-95"
+              onClick={handleSync}
+              disabled={isSyncing}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/[0.08] bg-zinc-900/80 hover:bg-zinc-800 text-xs font-medium text-zinc-300 transition-all shrink-0 active:scale-95 disabled:opacity-60 cursor-pointer group"
+              title="Sync live data from backend"
             >
-              <RefreshCw className="w-3.5 h-3.5" />
-              <span>Sync</span>
+              <RefreshCw
+                className={`w-3.5 h-3.5 transition-transform duration-700 ${
+                  isSyncing ? 'animate-spin text-white' : 'group-hover:rotate-180'
+                }`}
+              />
+              <span className={syncSuccess ? 'text-emerald-400 font-semibold transition-colors' : ''}>
+                {isSyncing ? 'Syncing...' : syncSuccess ? 'Synced' : 'Sync'}
+              </span>
             </button>
           </div>
 
@@ -261,7 +320,7 @@ export default function App() {
                 </div>
 
                 {/* 30% Right: Filters Card + Key Insights */}
-                <div className="xl:col-span-4 space-y-6">
+                <div className="xl:col-span-4 space-y-3.5">
                   <FiltersCard
                     filters={filters}
                     setFilters={setFilters}
@@ -274,77 +333,89 @@ export default function App() {
           )}
 
           {activeTab === 'influencers' && (
-            <div className="space-y-6">
-              <div className="p-6 rounded-2xl bg-[#0F1422] border border-white/[0.08] shadow-sm">
-                <h2 className="text-xl font-bold text-white mb-1">Top Influencer Leaderboards</h2>
-                <p className="text-xs text-slate-400">
-                  Comprehensive ranking across all verified creators based on multi-factor engagement & consistency.
-                </p>
+            <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+              <div className="xl:col-span-8">
+                <InfluencerTable
+                  influencers={influencers}
+                  selectedCategory={selectedCategory}
+                  setSelectedCategory={setSelectedCategory}
+                  onViewInfluencer={(item) => setSelectedInfluencer(item)}
+                  currentPage={currentPage}
+                  setCurrentPage={setCurrentPage}
+                  totalPages={totalPages}
+                  totalCount={totalCount}
+                />
               </div>
-              <InfluencerTable
-                influencers={influencers}
-                selectedCategory={selectedCategory}
-                setSelectedCategory={setSelectedCategory}
-                onViewInfluencer={(item) => setSelectedInfluencer(item)}
-                currentPage={currentPage}
-                setCurrentPage={setCurrentPage}
-                totalPages={totalPages}
-                totalCount={totalCount}
-              />
+              <div className="xl:col-span-4 space-y-3.5">
+                <FiltersCard
+                  filters={filters}
+                  setFilters={setFilters}
+                  onReset={handleResetFilters}
+                />
+                <KeyInsightsCard insights={keyInsights} />
+              </div>
             </div>
           )}
 
           {activeTab === 'categories' && (
             <div className="space-y-6">
-              <div className="p-6 rounded-2xl bg-[#0F1422] border border-white/[0.08] shadow-sm">
-                <h2 className="text-xl font-bold text-white mb-1">Niche Category Analytics</h2>
-                <p className="text-xs text-slate-400">
-                  Explore distribution, average followers, and engagement patterns across creator verticals.
-                </p>
-              </div>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <CategoryDonutChart data={categoryData} />
                 <CategoryFollowersBar data={topCategoriesFollowers} onSeeAll={() => {}} />
               </div>
-              <InfluencerTable
-                influencers={influencers}
-                selectedCategory={selectedCategory}
-                setSelectedCategory={setSelectedCategory}
-                onViewInfluencer={(item) => setSelectedInfluencer(item)}
-                currentPage={currentPage}
-                setCurrentPage={setCurrentPage}
-                totalPages={totalPages}
-                totalCount={totalCount}
-              />
+              <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+                <div className="xl:col-span-8">
+                  <InfluencerTable
+                    influencers={influencers}
+                    selectedCategory={selectedCategory}
+                    setSelectedCategory={setSelectedCategory}
+                    onViewInfluencer={(item) => setSelectedInfluencer(item)}
+                    currentPage={currentPage}
+                    setCurrentPage={setCurrentPage}
+                    totalPages={totalPages}
+                    totalCount={totalCount}
+                  />
+                </div>
+                <div className="xl:col-span-4 space-y-3.5">
+                  <FiltersCard
+                    filters={filters}
+                    setFilters={setFilters}
+                    onReset={handleResetFilters}
+                  />
+                  <KeyInsightsCard insights={keyInsights} />
+                </div>
+              </div>
             </div>
           )}
 
           {activeTab === 'dataset' && (
             <div className="space-y-6">
-              <div className="p-6 rounded-2xl bg-[#0F1422] border border-white/[0.08] shadow-sm flex items-center justify-between">
-                <div>
-                  <h2 className="text-xl font-bold text-white mb-1">Full Ingested Dataset (100% Real Records)</h2>
-                  <p className="text-xs text-slate-400">
-                    2,180 verified creators under 1M followers scraped from public Instagram profiles.
-                  </p>
-                </div>
-                <button
-                  onClick={handleExportCsv}
-                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white shadow-md shadow-indigo-600/30"
-                >
-                  Download Raw CSV
-                </button>
-              </div>
-              <InfluencerTable
-                influencers={influencers}
-                selectedCategory={selectedCategory}
-                setSelectedCategory={setSelectedCategory}
-                onViewInfluencer={(item) => setSelectedInfluencer(item)}
-                currentPage={currentPage}
-                setCurrentPage={setCurrentPage}
-                totalPages={totalPages}
-                totalCount={totalCount}
+              <DatasetManager
+                onExportCsv={handleExportCsv}
+                onDatasetChanged={() => setRefreshTrigger((prev) => prev + 1)}
               />
+              <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+                <div className="xl:col-span-8">
+                  <InfluencerTable
+                    influencers={influencers}
+                    selectedCategory={selectedCategory}
+                    setSelectedCategory={setSelectedCategory}
+                    onViewInfluencer={(item) => setSelectedInfluencer(item)}
+                    currentPage={currentPage}
+                    setCurrentPage={setCurrentPage}
+                    totalPages={totalPages}
+                    totalCount={totalCount}
+                  />
+                </div>
+                <div className="xl:col-span-4 space-y-3.5">
+                  <FiltersCard
+                    filters={filters}
+                    setFilters={setFilters}
+                    onReset={handleResetFilters}
+                  />
+                  <KeyInsightsCard insights={keyInsights} />
+                </div>
+              </div>
             </div>
           )}
 

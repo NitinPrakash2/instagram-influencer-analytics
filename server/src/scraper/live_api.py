@@ -18,10 +18,12 @@ class LiveInstagramAPI:
 
     def get_headers(self) -> Dict[str, str]:
         return {
-            "User-Agent": self.ua.random,
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
             "Accept-Language": "en-US,en;q=0.9",
-            "Referer": "https://www.google.com/"
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "none",
         }
 
     def fetch_live_instagram_profile(self, username: str) -> Dict[str, Any]:
@@ -76,6 +78,13 @@ class LiveInstagramAPI:
                     elif "(" in title_content:
                         full_name = title_content.split("(")[0].strip()
 
+            # Extract og:image profile picture
+            profile_pic_url = None
+            og_img_match = re.search(r'<meta\s+property="og:image"\s+content="([^"]+)"', html)
+            if og_img_match:
+                import html as html_lib
+                profile_pic_url = html_lib.unescape(og_img_match.group(1))
+
             # Fallback estimation if guest session was challenged by Meta
             if not followers:
                 followers = 45200  # Realistic default for micro influencer analysis
@@ -121,10 +130,11 @@ class LiveInstagramAPI:
                 "uses_automation": has_auto,
                 "automation_tool_detected": auto_tool,
                 "profile_url": url,
+                "profile_pic_url": profile_pic_url,
+                "avatar_url": f"/api/avatar/{clean_user}",
                 "bio": bio_text,
                 "status": "LIVE_FETCHED"
             }
-
         except Exception as e:
             return {
                 "success": False,
@@ -132,6 +142,31 @@ class LiveInstagramAPI:
                 "error": str(e),
                 "status": "FETCH_FAILED"
             }
+
+    def get_profile_picture_bytes(self, username: str) -> Optional[bytes]:
+        """Fetch and cache real Instagram profile picture bytes directly."""
+        clean_user = username.strip().lstrip("@").lower()
+        if not hasattr(self, "avatar_cache"):
+            self.avatar_cache = {}
+
+        if clean_user in self.avatar_cache:
+            return self.avatar_cache[clean_user]
+
+        url = f"https://www.instagram.com/{clean_user}/"
+        try:
+            r = self.session.get(url, headers=self.get_headers(), timeout=3.5)
+            if r.status_code == 200:
+                og_img = re.search(r'<meta\s+property="og:image"\s+content="([^"]+)"', r.text)
+                if og_img:
+                    import html as html_lib
+                    img_url = html_lib.unescape(og_img.group(1))
+                    img_res = requests.get(img_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=4)
+                    if img_res.status_code == 200 and len(img_res.content) > 500:
+                        self.avatar_cache[clean_user] = img_res.content
+                        return img_res.content
+        except Exception:
+            pass
+        return None
 
     def process_incoming_webhook(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """
